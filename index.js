@@ -28,6 +28,9 @@ app.post("/send-msg", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+app.get("/", (req, res) => {
+  res.send("Hello! The Telegram bot server is running.");
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
