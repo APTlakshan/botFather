@@ -71,8 +71,6 @@ app.get("/api/health", (req, res) => {
  *                 type: string
  *               user_mobile_no:
  *                 type: string
- *               user_mobile_no:
- *                 type: string
  *               exchange_name:
  *                 type: string
  *               exchange_id:
