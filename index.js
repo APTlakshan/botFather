@@ -71,7 +71,7 @@ app.get("/api/health", (req, res) => {
  *                 type: string
  *               user_mobile_no:
  *                 type: string
- *               relatime_and_date:
+ *               user_mobile_no:
  *                 type: string
  *               exchange_name:
  *                 type: string
@@ -108,7 +108,7 @@ app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
     const {
       username,
       user_mobile_no,
-      relatime_and_date,
+  // user_mobile_no is already declared above, remove duplicate
       exchange_name,
       exchange_id,
       usdt_amount,
@@ -116,14 +116,17 @@ app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
       selected_bank_name
     } = req.body;
     const filePath = req.file ? req.file.path : null;
-    if (!username || !user_mobile_no || !relatime_and_date || !exchange_name || !exchange_id || !usdt_amount || !lkr_amount || !selected_bank_name || !filePath) {
+    if (!username || !user_mobile_no || !exchange_name || !exchange_id || !usdt_amount || !lkr_amount || !selected_bank_name || !filePath) {
       return res.status(400).json({ success: false, error: "All fields are required" });
     }
 
+    const now = new Date();
+    const timeString = now.toLocaleString();
     const caption =
       `Receipt: ${req.file.originalname}\n` +
-      `Time: ${relatime_and_date}\n` +
+      `Time: ${timeString}\n` +
       `Name: ${username}\n` +
+      `Mobile No: ${user_mobile_no}\n` +
       `Amount: ${usdt_amount} USDT / ${lkr_amount} LKR\n` +
       `Exchange Name: ${exchange_name}`;
 
