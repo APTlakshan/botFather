@@ -145,8 +145,8 @@ app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
     } else if (mimeType === "application/pdf") {
       // Rename PDF file using customer details
       const safeUsername = username.replace(/[^a-zA-Z0-9-_]/g, "_");
-      const safeDate = relatime_and_date.replace(/[^a-zA-Z0-9-_]/g, "_");
-      const newFilename = `${safeUsername}_${safeDate}_exchange_${exchange_id}_usdt_${usdt_amount}_lkr_${lkr_amount}.pdf`;
+  const safeDate = now.toISOString().replace(/[:.]/g, "-");
+  const newFilename = `${safeUsername}_${safeDate}_exchange_${exchange_id}_usdt_${usdt_amount}_lkr_${lkr_amount}.pdf`;
       const newFilePath = path.join(path.dirname(filePath), newFilename);
       fs.renameSync(filePath, newFilePath);
       form.append("document", fs.createReadStream(newFilePath), { filename: newFilename });
