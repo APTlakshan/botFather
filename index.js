@@ -6,10 +6,12 @@ const FormData = require("form-data");
 const fs = require("fs");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
+const cors = require("cors");
 
 
 
 const app = express();
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 const swaggerOptions = {
