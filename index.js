@@ -11,7 +11,10 @@ const cors = require("cors");
 
 
 const app = express();
-app.use(cors({ origin: true }));
+app.use(cors({
+  origin: ["*", "http://localhost", "http://127.0.0.1"],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+}));
 app.use(express.json());
 
 const swaggerOptions = {
@@ -64,12 +67,22 @@ app.get("/api/health", (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               username:
  *                 type: string
- *               binanceId:
+ *               user_mobile_no:
  *                 type: string
- *               amount:
+ *               relatime_and_date:
+ *                 type: string
+ *               exchange_name:
+ *                 type: string
+ *               exchange_id:
+ *                 type: string
+ *               usdt_amount:
  *                 type: number
+ *               lkr_amount:
+ *                 type: number
+ *               selected_bank_name:
+ *                 type: string
  *               receipt:
  *                 type: string
  *                 format: binary
@@ -92,15 +105,27 @@ const upload = multer({ dest: "uploads/" });
 const path = require("path");
 app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
   try {
-    const { name, binanceId, amount } = req.body;
+    const {
+      username,
+      user_mobile_no,
+      relatime_and_date,
+      exchange_name,
+      exchange_id,
+      usdt_amount,
+      lkr_amount,
+      selected_bank_name
+    } = req.body;
     const filePath = req.file ? req.file.path : null;
-    if (!name || !binanceId || !amount || !filePath) {
+    if (!username || !user_mobile_no || !relatime_and_date || !exchange_name || !exchange_id || !usdt_amount || !lkr_amount || !selected_bank_name || !filePath) {
       return res.status(400).json({ success: false, error: "All fields are required" });
     }
 
-    const now = new Date();
-    const timeString = now.toLocaleString();
-    const caption = `Name: ${name}\nTime: ${timeString}\nAmount: ${amount}`;
+    const caption =
+      `Receipt: ${req.file.originalname}\n` +
+      `Time: ${relatime_and_date}\n` +
+      `Name: ${username}\n` +
+      `Amount: ${usdt_amount} USDT / ${lkr_amount} LKR\n` +
+      `Exchange Name: ${exchange_name}`;
 
     const form = new FormData();
     form.append("chat_id", CHAT_ID);
@@ -118,9 +143,9 @@ app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
       );
     } else if (mimeType === "application/pdf") {
       // Rename PDF file using customer details
-      const safeName = name.replace(/[^a-zA-Z0-9-_]/g, "_");
-      const safeDate = now.toISOString().replace(/[:.]/g, "-");
-      const newFilename = `${safeName}_${safeDate}_binance_${binanceId}_amount_${amount}.pdf`;
+      const safeUsername = username.replace(/[^a-zA-Z0-9-_]/g, "_");
+      const safeDate = relatime_and_date.replace(/[^a-zA-Z0-9-_]/g, "_");
+      const newFilename = `${safeUsername}_${safeDate}_exchange_${exchange_id}_usdt_${usdt_amount}_lkr_${lkr_amount}.pdf`;
       const newFilePath = path.join(path.dirname(filePath), newFilename);
       fs.renameSync(filePath, newFilePath);
       form.append("document", fs.createReadStream(newFilePath), { filename: newFilename });
@@ -133,12 +158,12 @@ app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
       return res.status(400).json({ success: false, error: "Unsupported file type. Please upload an image or PDF." });
     }
 
-    // Send Binance ID as a separate message for easy copying
+    // Send Exchange ID as a separate message for easy copying
     await axios.post(
       `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
       {
         chat_id: CHAT_ID,
-        text: `Binance ID: ${binanceId}`
+        text: `Exchange ID: ${exchange_id}`
       }
     );
 
