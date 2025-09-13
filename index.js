@@ -12,7 +12,7 @@ const cors = require("cors");
 
 const app = express();
 app.use(cors({
-  origin: ["*", "http://localhost", "http://127.0.0.1"],
+  origin: ["*", "http://localhost", "http://127.0.0.1", "https://swapgate.vercel.app", "https://swapgate-store.com"],
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 app.use(express.json());
