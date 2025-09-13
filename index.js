@@ -59,7 +59,7 @@ app.get("/api/health", (req, res) => {
  * @openapi
  * /api/send-msg:
  *   post:
- *     summary: Send message and photo to Telegram bot
+ *     summary: Send two files (bank slip and user summary PDF) to Telegram bot
  *     requestBody:
  *       required: true
  *       content:
@@ -67,26 +67,20 @@ app.get("/api/health", (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               username:
- *                 type: string
- *               user_mobile_no:
- *                 type: string
- *               exchange_name:
- *                 type: string
- *               exchange_id:
- *                 type: string
- *               usdt_amount:
- *                 type: number
- *               lkr_amount:
- *                 type: number
- *               selected_bank_name:
- *                 type: string
- *               receipt:
+ *               bank_slip:
  *                 type: string
  *                 format: binary
+ *                 description: Bank slip image or PDF file
+ *               user_summary_pdf:
+ *                 type: string
+ *                 format: binary
+ *                 description: User summary PDF file
+ *             required:
+ *               - bank_slip
+ *               - user_summary_pdf
  *     responses:
  *       200:
- *         description: Message and photo sent successfully
+ *         description: Files sent successfully to Telegram
  *         content:
  *           application/json:
  *             schema:
@@ -96,82 +90,101 @@ app.get("/api/health", (req, res) => {
  *                   type: boolean
  *                 telegram:
  *                   type: object
+ *       400:
+ *         description: Missing required files or invalid file types
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
  *       500:
- *         description: Error sending message/photo
+ *         description: Error sending files
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
  */
 const upload = multer({ dest: "uploads/" });
 const path = require("path");
-app.post("/api/send-msg", upload.single("receipt"), async (req, res) => {
+app.post("/api/send-msg", upload.fields([
+  { name: "bank_slip", maxCount: 1 },
+  { name: "user_summary_pdf", maxCount: 1 }
+]), async (req, res) => {
   try {
-    const {
-      username,
-      user_mobile_no,
-  // user_mobile_no is already declared above, remove duplicate
-      exchange_name,
-      exchange_id,
-      usdt_amount,
-      lkr_amount,
-      selected_bank_name
-    } = req.body;
-    const filePath = req.file ? req.file.path : null;
-    if (!username || !user_mobile_no || !exchange_name || !exchange_id || !usdt_amount || !lkr_amount || !selected_bank_name || !filePath) {
-      return res.status(400).json({ success: false, error: "All fields are required" });
+    // Handle two file uploads only
+    const bankSlipFile = req.files && req.files.bank_slip ? req.files.bank_slip[0] : null;
+    const userSummaryFile = req.files && req.files.user_summary_pdf ? req.files.user_summary_pdf[0] : null;
+    
+    if (!bankSlipFile || !userSummaryFile) {
+      return res.status(400).json({ success: false, error: "Both files (bank_slip and user_summary_pdf) are required" });
     }
 
-    const now = new Date();
-    const timeString = now.toLocaleString();
-    const caption =
-      `Receipt: ${req.file.originalname}\n` +
-      `Time: ${timeString}\n` +
-      `Name: ${username}\n` +
-      `Mobile No: ${user_mobile_no}\n` +
-      `Amount: ${usdt_amount} USDT / ${lkr_amount} LKR\n` +
-      `Exchange Name: ${exchange_name}`;
+    // Send bank slip without caption
+    await sendFileToTelegram(bankSlipFile, "", "Bank_Slip");
 
-    const form = new FormData();
-    form.append("chat_id", CHAT_ID);
-    form.append("caption", caption);
+    // Send user summary without caption
+    const summaryResponse = await sendFileToTelegram(userSummaryFile, "", "User_Summary");
 
-    // Check file type: send as photo if image, else as document (PDF)
-    const mimeType = req.file.mimetype;
-    let telegramResponse;
-    if (mimeType.startsWith("image/")) {
-      form.append("photo", fs.createReadStream(filePath));
-      telegramResponse = await axios.post(
-        `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`,
-        form,
-        { headers: form.getHeaders() }
-      );
-    } else if (mimeType === "application/pdf") {
-      // Rename PDF file using customer details
-      const safeUsername = username.replace(/[^a-zA-Z0-9-_]/g, "_");
-  const safeDate = now.toISOString().replace(/[:.]/g, "-");
-  const newFilename = `${safeUsername}_${safeDate}_exchange_${exchange_id}_usdt_${usdt_amount}_lkr_${lkr_amount}.pdf`;
-      const newFilePath = path.join(path.dirname(filePath), newFilename);
-      fs.renameSync(filePath, newFilePath);
-      form.append("document", fs.createReadStream(newFilePath), { filename: newFilename });
-      telegramResponse = await axios.post(
-        `https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`,
-        form,
-        { headers: form.getHeaders() }
-      );
-    } else {
-      return res.status(400).json({ success: false, error: "Unsupported file type. Please upload an image or PDF." });
-    }
-
-    // Send Exchange ID as a separate message for easy copying
+    // Send page break line after both files
     await axios.post(
       `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
       {
         chat_id: CHAT_ID,
-        text: `Exchange ID: ${exchange_id}`
+        text: "_____________________________________"
       }
     );
 
-    res.json({ success: true, telegram: telegramResponse.data });
+    res.json({ success: true, telegram: summaryResponse.data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// Helper function to send files to Telegram
+async function sendFileToTelegram(file, caption, fileType) {
+  const form = new FormData();
+  form.append("chat_id", CHAT_ID);
+  form.append("caption", caption);
+
+  // Check file type: send as photo if image, else as document (PDF)
+  const mimeType = file.mimetype;
+  let telegramResponse;
+  
+  if (mimeType.startsWith("image/")) {
+    form.append("photo", fs.createReadStream(file.path));
+    telegramResponse = await axios.post(
+      `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`,
+      form,
+      { headers: form.getHeaders() }
+    );
+  } else if (mimeType === "application/pdf") {
+    // Create a descriptive filename for the PDF
+    const now = new Date();
+    const safeDate = now.toISOString().replace(/[:.]/g, "-");
+    const newFilename = `${fileType.replace(/\s+/g, "_")}_${safeDate}_${file.originalname}`;
+    const newFilePath = path.join(path.dirname(file.path), newFilename);
+    fs.renameSync(file.path, newFilePath);
+    
+    form.append("document", fs.createReadStream(newFilePath), { filename: newFilename });
+    telegramResponse = await axios.post(
+      `https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`,
+      form,
+      { headers: form.getHeaders() }
+    );
+  } else {
+    throw new Error(`Unsupported file type for ${fileType}. Please upload an image or PDF.`);
+  }
+  
+  return telegramResponse;
+}
 
 app.listen(3000, () => console.log("Server running on port 3000"));
